@@ -6,61 +6,88 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 
-#de API key
+# De API key veilig ophalen
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-#functie om de tekst goed in de template te krijgen
-def create_formatted_docx(herschreven_tekst):
+# Functie om de tekst goed in de template te krijgen
+def create_formatted_docx(text, is_cv=True):
     doc = Document()
-    lines = herschreven_tekst.split('\n')
+    lines = text.split('\n')
     
     for line in lines:
-        if not line.strip(): # Sla lege regels over 
+        if not line.strip(): 
             doc.add_paragraph()
             continue
             
         p = doc.add_paragraph()
         run = p.add_run(line.replace('#', '').strip())
-        
-        #gebruik juiste lettertype en font size
         run.font.name = 'Poppins Light'
         run.font.size = Pt(9)
         
-        # We vergelijken alles in hoofdletters 
-        upper_line = line.upper().strip()
-        headers = [
-            "KERNCOMPETENTIES", 
-            "WERKERVARING", 
-            "OPLEIDING", 
-            "CURSUSSEN & TRAININGEN", 
-            "VAARDIGHEDEN & COMPETENTIES",
-            "RELEVANTE ERVARING"
-        ]
-        
-        # Maak dikgedrukt als het een header of als | en InTheArena in de line staan
-        if any(header in upper_line for header in headers) or ("|" in line and "InTheArena" in line):
-            run.bold = True
+        # Alleen in het CV passen we de dikgedrukte headers toe
+        if is_cv:
+            upper_line = line.upper().strip()
+            headers = ["KERNCOMPETENTIES", "WERKERVARING", "OPLEIDING", "CURSUSSEN & TRAININGEN", "VAARDIGHEDEN & COMPETENTIES", "RELEVANTE ERVARING"]
+            if any(header in upper_line for header in headers) or ("|" in line and "InTheArena" in line):
+                run.bold = True
+        else:
+            # Voor Motivatie en Analyse maken we koppen dikgedrukt als ze bovenaan staan
+            if ":" in line and len(line) < 40:
+                run.bold = True
 
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer
 
-#Grote naam bovenaan de website
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("InTheArena Portaal")
+    password = st.text_input("Voer het wachtwoord in om toegang te krijgen:", type="password")
+    if st.button("Log in"):
+        if password == st.secrets["APP_PASSWORD"]:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Onjuist wachtwoord.")
+    st.stop()
+
+# Initialiseer session_state om resultaten te bewaren na het klikken op download
+if 'cv_result' not in st.session_state:
+    st.session_state.cv_result = None
+if 'mot_result' not in st.session_state:
+    st.session_state.mot_result = None
+if 'ana_result' not in st.session_state:
+    st.session_state.ana_result = None
+
+# Grote naam bovenaan de website
 st.title("InTheArena CV Builder")
 
 uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
 job_description = st.text_area("Plak hier de opdracht van de klant:", height=200)
 
-#knop
+# Knop
 if st.button("Genereer CV in InTheArena Stijl"):
     if uploaded_file and job_description:
         with st.spinner('Bezig met herschrijven volgens template...'):
             reader = PyPDF2.PdfReader(uploaded_file)
             cv_text = "".join([page.extract_text() for page in reader.pages])
-                #system prompts, wat je meegeeft aan chatgpt
+            
+            # System prompt voor CV
             system_message = (
-                "Je bent de InTheArena CV Builder. Herschrijf het CV in de ik-vorm. "
+                "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
+                "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
+                "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+                "INSTRUCTIES VOOR INHOUD:\n"
+                "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
+                "- Je mag herformuleren, bundelen of ordenen, of verantwoordelijkheden toevoegen mits herleidbaar.\n"
+                "- Kwaliteiten InTheArena: Wij beschikken momenteel over: workshops faciliteren, analyse en structuur aanbrengen, "
+                "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen. "
+                "Voeg deze toe als de uitvraag hierom vraagt.\n"
+                "- Schrijf 100% op basis van de uitvraag: Verwerk de taal en functietermen uit de broker aanvraag.\n"
+                "- Functietitels aanpassen mag alleen als dit logisch is (bijv. Projectmedewerker -> Projectleider).\n\n"
+                "GEWENSTE STRUCTUUR:\n"
                 "Gebruik PRECIES de volgende structuur en koppen:\n"
                 "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
                 "Kerncompetenties (met bullets)\n"
@@ -71,8 +98,9 @@ if st.button("Genereer CV in InTheArena Stijl"):
                 "Vaardigheden en competenties\n"
                 "Houd het zakelijk maar energiek. Gebruik voor opsommingen altijd het streepje (-)."
             )
-            #De API call
-            response = client.chat.completions.create(
+            
+            # De API calls en opslaan in session_state
+            cv_response = client.chat.completions.create(
                 model="gpt-4o", 
                 messages=[
                     {"role": "system", "content": system_message},
@@ -80,15 +108,56 @@ if st.button("Genereer CV in InTheArena Stijl"):
                 ],
                 temperature=0.3
             )
+            st.session_state.cv_result = cv_response.choices[0].message.content
 
-            resultaat = response.choices[0].message.content
-            
-
-            word_file = create_formatted_docx(resultaat)
-            #knop om de word file te kunnen downloaden
-            st.download_button(
-                label="Download CV (Poppins 9)",
-                data=word_file,
-                file_name="Herschreven_CV_InTheArena.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            mot_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Concreet, helder, actiegericht, menselijk en zonder superlatieven."},
+                    {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}
+                ],
+                temperature=0.4
             )
+            st.session_state.mot_result = mot_response.choices[0].message.content
+
+            ana_response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": (
+                        "Je bent een kritische recruiter. Analyseer welke vaardigheden/competenties "
+                        "ontbreken in het CV om een perfecte match te zijn voor de opdracht. "
+                        "Verzin niets! Geef per ontbrekend punt een suggestie hoe de kandidaat "
+                        "dit zou kunnen toevoegen of toelichten."
+                    )},
+                    {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}
+                ],
+                temperature=0.2
+            )
+            st.session_state.ana_result = ana_response.choices[0].message.content
+
+# Toon resultaten en downloadknoppen als er data in de session_state zit
+if st.session_state.cv_result:
+    st.success("Alle documenten zijn gereed!")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.download_button("Download CV", 
+                           data=create_formatted_docx(st.session_state.cv_result, True), 
+                           file_name="Herschreven_CV.docx")
+    
+    with col2:
+        st.download_button("Download Motivatie", 
+                           data=create_formatted_docx(st.session_state.mot_result, False), 
+                           file_name="Motivatie.docx")
+    
+    with col3:
+        st.download_button("Download Analyse", 
+                           data=create_formatted_docx(st.session_state.ana_result, False), 
+                           file_name="Analyse_Tekortkomingen.docx")
+
+    # Preview van de analyse onderaan
+    st.info("### Analyse van ontbrekende zaken")
+    st.markdown(st.session_state.ana_result)
+elif not uploaded_file and not job_description:
+    pass # Voorkom error melding bij eerste keer laden
