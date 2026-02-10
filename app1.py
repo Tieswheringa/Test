@@ -1,6 +1,7 @@
 import streamlit as st
 from openai import OpenAI
 import PyPDF2 
+import re
 from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -8,30 +9,49 @@ from io import BytesIO
 
 # De API key veilig ophalen
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
 # Functie om de tekst goed in de template te krijgen
 def create_formatted_docx(text, is_cv=True):
     doc = Document()
     lines = text.split('\n')
     
     for line in lines:
-        if not line.strip(): 
+        clean_line = line.strip()
+        if not clean_line: 
             doc.add_paragraph()
             continue
             
-        p = doc.add_paragraph()
-        run = p.add_run(line.replace('#', '').strip())
+        # Check of de regel een bullet moet zijn (begint met -)
+        if is_cv and clean_line.startswith('-'):
+            # Voeg een paragraaf toe met de officiële Word bullet-stijl
+            p = doc.add_paragraph(style='List Bullet')
+            # Verwijder het streepje uit de tekst voor de Word-bullet
+            run_text = clean_line.lstrip('- ').strip()
+        else:
+            p = doc.add_paragraph()
+            run_text = clean_line.replace('#', '').strip()
+
+        run = p.add_run(run_text)
         run.font.name = 'Poppins Light'
         run.font.size = Pt(9)
         
         # Alleen in het CV passen we de dikgedrukte headers toe
         if is_cv:
-            upper_line = line.upper().strip()
+            upper_line = clean_line.upper().strip()
             headers = ["KERNCOMPETENTIES", "WERKERVARING", "OPLEIDING", "CURSUSSEN & TRAININGEN", "VAARDIGHEDEN & COMPETENTIES", "RELEVANTE ERVARING"]
-            if any(header in upper_line for header in headers) or ("|" in line and "InTheArena" in line):
+            
+            # Logica voor dikgedrukte regels:
+            # 1. Hoofdkoppen
+            # 2. De Naam | Consultant regel
+            # 3. Werkervaring regels (herkenning op basis van jaartallen tussen haakjes)
+            if any(header in upper_line for header in headers) or \
+               ("|" in clean_line and "InTheArena" in clean_line) or \
+               (re.search(r'\(\d{4}\s*-\s*.*\)', clean_line)) or \
+               (re.search(r'\(\d{4}\)', clean_line)):
                 run.bold = True
         else:
             # Voor Motivatie en Analyse maken we koppen dikgedrukt als ze bovenaan staan
-            if ":" in line and len(line) < 40:
+            if ":" in clean_line and len(clean_line) < 40:
                 run.bold = True
 
     buffer = BytesIO()
@@ -74,11 +94,17 @@ if st.button("Genereer CV in InTheArena Stijl"):
             reader = PyPDF2.PdfReader(uploaded_file)
             cv_text = "".join([page.extract_text() for page in reader.pages])
             
+            # Bereken origineel woordaantal voor de instructie
+            original_word_count = len(cv_text.split())
+            
             # System prompt voor CV
             system_message = (
                 "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
                 "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
                 "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+                f"BELANGRIJK: Het originele CV bevat ongeveer {original_word_count} woorden. "
+                "Jouw herschreven versie MOET ongeveer evenveel woorden bevatten (marge van 100 woorden). "
+                "Kort de werkervaring of introductie niet onnodig in; behoud de diepgang van het origineel.\n\n"
                 "INSTRUCTIES VOOR INHOUD:\n"
                 "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
                 "- Je mag herformuleren, bundelen of ordenen, of verantwoordelijkheden toevoegen mits herleidbaar.\n"
