@@ -3,7 +3,7 @@ from openai import OpenAI
 import PyPDF2 
 import re
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from io import BytesIO
 
@@ -21,14 +21,16 @@ def create_formatted_docx(text, is_cv=True):
             doc.add_paragraph()
             continue
             
+        p = doc.add_paragraph()
+        
         # Check of de regel een bullet moet zijn (begint met -)
         if is_cv and clean_line.startswith('-'):
-            # Voeg een paragraaf toe met de officiële Word bullet-stijl
-            p = doc.add_paragraph(style='List Bullet')
-            # Verwijder het streepje uit de tekst voor de Word-bullet
-            run_text = clean_line.lstrip('- ').strip()
+            # In plaats van de Word-stijl 'List Bullet' (die bolletjes geeft),
+            # maken we handmatig een streepjes-bullet met inspringing.
+            p.paragraph_format.left_indent = Inches(0.2)
+            p.paragraph_format.first_line_indent = Inches(-0.2)
+            run_text = clean_line # We behouden het streepje uit de tekst
         else:
-            p = doc.add_paragraph()
             run_text = clean_line.replace('#', '').strip()
 
         run = p.add_run(run_text)
@@ -40,10 +42,7 @@ def create_formatted_docx(text, is_cv=True):
             upper_line = clean_line.upper().strip()
             headers = ["KERNCOMPETENTIES", "WERKERVARING", "OPLEIDING", "CURSUSSEN & TRAININGEN", "VAARDIGHEDEN & COMPETENTIES", "RELEVANTE ERVARING"]
             
-            # Logica voor dikgedrukte regels:
-            # 1. Hoofdkoppen
-            # 2. De Naam | Consultant regel
-            # 3. Werkervaring regels (herkenning op basis van jaartallen tussen haakjes)
+            # Logica voor dikgedrukte regels
             if any(header in upper_line for header in headers) or \
                ("|" in clean_line and "InTheArena" in clean_line) or \
                (re.search(r'\(\d{4}\s*-\s*.*\)', clean_line)) or \
@@ -94,25 +93,21 @@ if st.button("Genereer CV in InTheArena Stijl"):
             reader = PyPDF2.PdfReader(uploaded_file)
             cv_text = "".join([page.extract_text() for page in reader.pages])
             
-            # Bereken origineel woordaantal voor de instructie
-            original_word_count = len(cv_text.split())
-            
             # System prompt voor CV
             system_message = (
                 "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
                 "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
                 "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
-                f"BELANGRIJK: Het originele CV bevat ongeveer {original_word_count} woorden. "
-                "Jouw herschreven versie MOET ongeveer evenveel woorden bevatten (marge van 100 woorden). "
-                "Kort de werkervaring of introductie niet onnodig in; behoud de diepgang van het origineel.\n\n"
+                "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
+                "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
+                "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
                 "INSTRUCTIES VOOR INHOUD:\n"
                 "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
                 "- Je mag herformuleren, bundelen of ordenen, of verantwoordelijkheden toevoegen mits herleidbaar.\n"
                 "- Kwaliteiten InTheArena: Wij beschikken momenteel over: workshops faciliteren, analyse en structuur aanbrengen, "
-                "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen. "
-                "Voeg deze toe als de uitvraag hierom vraagt.\n"
+                "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
                 "- Schrijf 100% op basis van de uitvraag: Verwerk de taal en functietermen uit de broker aanvraag.\n"
-                "- Functietitels aanpassen mag alleen als dit logisch is (bijv. Projectmedewerker -> Projectleider).\n\n"
+                "- Functietitels aanpassen mag alleen als dit logisch is.\n\n"
                 "GEWENSTE STRUCTUUR:\n"
                 "Gebruik PRECIES de volgende structuur en koppen:\n"
                 "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
@@ -122,10 +117,10 @@ if st.button("Genereer CV in InTheArena Stijl"):
                 "Opleiding\n"
                 "Cursussen & trainingen\n"
                 "Vaardigheden en competenties\n"
-                "Houd het zakelijk maar energiek. Gebruik voor opsommingen altijd het streepje (-)."
+                "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een spatie."
             )
             
-            # De API calls en opslaan in session_state
+            # De API calls
             cv_response = client.chat.completions.create(
                 model="gpt-4o", 
                 messages=[
@@ -149,41 +144,23 @@ if st.button("Genereer CV in InTheArena Stijl"):
             ana_response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": (
-                        "Je bent een kritische recruiter. Analyseer welke vaardigheden/competenties "
-                        "ontbreken in het CV om een perfecte match te zijn voor de opdracht. "
-                        "Verzin niets! Geef per ontbrekend punt een suggestie hoe de kandidaat "
-                        "dit zou kunnen toevoegen of toelichten."
-                    )},
+                    {"role": "system", "content": "Analyseer ontbrekende vaardigheden zonder te verzinnen en geef suggesties."},
                     {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}
                 ],
                 temperature=0.2
             )
             st.session_state.ana_result = ana_response.choices[0].message.content
 
-# Toon resultaten en downloadknoppen als er data in de session_state zit
+# Toon resultaten en downloadknoppen
 if st.session_state.cv_result:
     st.success("Alle documenten zijn gereed!")
-    
     col1, col2, col3 = st.columns(3)
-    
     with col1:
-        st.download_button("Download CV", 
-                           data=create_formatted_docx(st.session_state.cv_result, True), 
-                           file_name="Herschreven_CV.docx")
-    
+        st.download_button("Download CV", data=create_formatted_docx(st.session_state.cv_result, True), file_name="Herschreven_CV.docx")
     with col2:
-        st.download_button("Download Motivatie", 
-                           data=create_formatted_docx(st.session_state.mot_result, False), 
-                           file_name="Motivatie.docx")
-    
+        st.download_button("Download Motivatie", data=create_formatted_docx(st.session_state.mot_result, False), file_name="Motivatie.docx")
     with col3:
-        st.download_button("Download Analyse", 
-                           data=create_formatted_docx(st.session_state.ana_result, False), 
-                           file_name="Analyse_Tekortkomingen.docx")
+        st.download_button("Download Analyse", data=create_formatted_docx(st.session_state.ana_result, False), file_name="Analyse_Tekortkomingen.docx")
 
-    # Preview van de analyse onderaan
     st.info("### Analyse van ontbrekende zaken")
     st.markdown(st.session_state.ana_result)
-elif not uploaded_file and not job_description:
-    pass # Voorkom error melding bij eerste keer laden
