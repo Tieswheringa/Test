@@ -9,13 +9,15 @@ from io import BytesIO
 # --- 1. CONFIGURATIE ---
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Functie om de tekst goed in de template te krijgen (Behoudt jouw layout wensen)
+# Functie om de tekst goed in de template te krijgen
 def create_formatted_docx(text, is_cv=True):
     doc = Document()
     lines = text.split('\n')
     
     for line in lines:
-        clean_line = line.strip()
+        # Verwijder asterisken (*) en andere markdown-resten
+        clean_line = line.replace('*', '').replace('#', '').strip()
+        
         if not clean_line: 
             doc.add_paragraph()
             continue
@@ -28,7 +30,7 @@ def create_formatted_docx(text, is_cv=True):
             p.paragraph_format.first_line_indent = Inches(-0.25)
             run_text = clean_line
         else:
-            run_text = clean_line.replace('#', '').strip()
+            run_text = clean_line
 
         run = p.add_run(run_text)
         run.font.name = 'Poppins Light'
@@ -42,7 +44,7 @@ def create_formatted_docx(text, is_cv=True):
                (re.search(r'\(\d{4}\s*-\s*.*\)', clean_line)) or \
                (re.search(r'\(\d{4}\)', clean_line)):
                 run.bold = True
-        elif ":" in clean_line and len(clean_line) < 40:
+        elif ":" in clean_line and len(clean_line) < 50:
             run.bold = True
 
     buffer = BytesIO()
@@ -72,10 +74,8 @@ if 'mot_result' not in st.session_state:
     st.session_state.mot_result = None
 if 'ana_result' not in st.session_state:
     st.session_state.ana_result = None
-if 'original_cv_text' not in st.session_state:
-    st.session_state.original_cv_text = ""
 
-st.title("InTheArena CV Builder")
+st.title("InTheArena CV Builder 🚀")
 
 uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
 job_description = st.text_area("Plak hier de opdracht van de klant:", height=200)
@@ -85,57 +85,83 @@ if st.button("Genereer Documenten"):
     if uploaded_file and job_description:
         with st.spinner('Bezig met herschrijven...'):
             reader = PyPDF2.PdfReader(uploaded_file)
-            st.session_state.original_cv_text = "".join([page.extract_text() for page in reader.pages])
+            cv_text = "".join([page.extract_text() for page in reader.pages])
             
-            system_message = (
+            # System prompt voor CV
+            cv_system = (
                 "Jij bent de InTheArena CV Builder. Schrijf een CV voor brokerportalen tussen 700-900 woorden. "
-                "Gebruik streepjes (-) voor bullets. Behoud de exacte InTheArena structuur."
+                "GEBRUIK GEEN asterisken (*) voor dikgedrukte tekst. Gebruik streepjes (-) voor bullets. "
+                "Houd de exacte InTheArena structuur aan."
             )
             
+            # CV Call
             cv_res = client.chat.completions.create(
                 model="gpt-4o", 
-                messages=[{"role": "system", "content": system_message},
-                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {st.session_state.original_cv_text}"}],
+                messages=[{"role": "system", "content": cv_system},
+                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
                 temperature=0.3
             )
             st.session_state.cv_result = cv_res.choices[0].message.content
-            # Motivatie en Analyse calls hier toevoegen indien gewenst
+
+            # Motivatie Call
+            mot_res = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Geen asterisken (*)."},
+                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
+                temperature=0.4
+            )
+            st.session_state.mot_result = mot_res.choices[0].message.content
+
+            # Analyse Call
+            ana_res = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch. Geen asterisken (*)."},
+                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
+                temperature=0.2
+            )
+            st.session_state.ana_result = ana_res.choices[0].message.content
 
 # --- 5. FEEDBACK SECTIE ---
 if st.session_state.cv_result:
     st.divider()
-    st.subheader("Aanpassen op basis van feedback")
-    feedback = st.text_area("Wat moet er veranderd worden aan het gegenereerde CV?", placeholder="Bijv: Maak de introductie iets zakelijker of benadruk meer de projectmanagement ervaring.")
+    st.subheader("💡 Verfijn het resultaat")
+    feedback = st.text_area("Wat moet er veranderd worden aan het CV?", placeholder="Bijv: Benadruk meer de ervaring met agile werken.")
     
-    if st.button("Pas CV aan"):
+    if st.button("Update CV"):
         if feedback:
-            with st.spinner('CV aanpassen...'):
-                update_message = (
-                    f"Pas het eerder gegenereerde CV aan op basis van deze feedback: '{feedback}'.\n\n"
-                    f"Behoud de structuur, de streepjes-bullets en de lengte (700-900 woorden).\n"
-                    f"Hier is het huidige CV:\n{st.session_state.cv_result}"
-                )
-                
+            with st.spinner('CV wordt aangepast...'):
                 cv_update = client.chat.completions.create(
                     model="gpt-4o", 
                     messages=[
-                        {"role": "system", "content": "Jij bent een expert in het verfijnen van CV's. Voer de gevraagde wijzigingen door in de tekst."},
-                        {"role": "user", "content": update_message}
+                        {"role": "system", "content": "Pas het CV aan op basis van de feedback. Gebruik GEEN asterisken (*)."},
+                        {"role": "user", "content": f"Huidig CV: {st.session_state.cv_result}\n\nFeedback: {feedback}"}
                     ],
                     temperature=0.3
                 )
                 st.session_state.cv_result = cv_update.choices[0].message.content
-                st.success("CV is aangepast!")
+                st.success("CV is bijgewerkt!")
 
     # --- 6. DOWNLOAD SECTIE ---
     st.divider()
-    st.success("Documenten gereed!")
+    st.success("Alle documenten zijn gereed!")
     col1, col2, col3 = st.columns(3)
+    
     with col1:
-        st.download_button("Download CV", data=create_formatted_docx(st.session_state.cv_result, True), file_name="Herschreven_CV.docx")
-    if st.session_state.mot_result:
-        with col2:
-            st.download_button("Download Motivatie", data=create_formatted_docx(st.session_state.mot_result, False), file_name="Motivatie.docx")
-    if st.session_state.ana_result:
-        with col3:
-            st.download_button("Download Analyse", data=create_formatted_docx(st.session_state.ana_result, False), file_name="Analyse.docx")
+        st.download_button("Download CV", 
+                           data=create_formatted_docx(st.session_state.cv_result, True), 
+                           file_name="Herschreven_CV.docx")
+    
+    with col2:
+        if st.session_state.mot_result:
+            st.download_button("Download Motivatie", 
+                               data=create_formatted_docx(st.session_state.mot_result, False), 
+                               file_name="Motivatie.docx")
+    
+    with col3:
+        if st.session_state.ana_result:
+            st.download_button("Download Analyse", 
+                               data=create_formatted_docx(st.session_state.ana_result, False), 
+                               file_name="Match_Analyse.docx")
+
+    st.info("### Preview Analyse")
+    st.markdown(st.session_state.ana_result.replace('*', ''))
