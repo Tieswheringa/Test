@@ -114,7 +114,7 @@ if st.button("Genereer Documenten"):
                 "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab."
                 "GEBRUIK GEEN ASTERISKEN *"
             )
-            )
+            
             
             # CV Call
             cv_res = client.chat.completions.create(
@@ -187,4 +187,5 @@ if st.session_state.cv_result:
 
     st.info("### Preview Analyse")
     st.markdown(st.session_state.ana_result.replace('*', ''))
+
 
