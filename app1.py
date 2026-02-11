@@ -89,9 +89,31 @@ if st.button("Genereer Documenten"):
             
             # System prompt voor CV
             cv_system = (
-                "Jij bent de InTheArena CV Builder. Schrijf een CV voor brokerportalen tussen 700-900 woorden. "
-                "GEBRUIK GEEN asterisken (*) voor dikgedrukte tekst. Gebruik streepjes (-) voor bullets. "
-                "Houd de exacte InTheArena structuur aan."
+                "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
+                "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
+                "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+                "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
+                "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
+                "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
+                "INSTRUCTIES VOOR INHOUD:\n"
+                "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
+                "- Je mag herformuleren, bundelen of ordenen, of verantwoordelijkheden toevoegen mits herleidbaar.\n"
+                "- Kwaliteiten InTheArena: Wij beschikken momenteel over: workshops faciliteren, analyse en structuur aanbrengen, "
+                "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
+                "- Schrijf 100% op basis van de uitvraag: Verwerk de taal en functietermen uit de broker aanvraag.\n"
+                "- Functietitels aanpassen mag alleen als dit logisch is.\n\n"
+                "GEWENSTE STRUCTUUR:\n"
+                "Gebruik PRECIES de volgende structuur en koppen:\n"
+                "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
+                "Kerncompetenties (met bullets)\n"
+                "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets)\n"
+                "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
+                "Opleiding\n"
+                "Cursussen & trainingen\n"
+                "Vaardigheden en competenties\n"
+                "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab."
+                "GEBRUIK GEEN ASTERISKEN *"
+            )
             )
             
             # CV Call
@@ -165,3 +187,4 @@ if st.session_state.cv_result:
 
     st.info("### Preview Analyse")
     st.markdown(st.session_state.ana_result.replace('*', ''))
+
