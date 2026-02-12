@@ -67,7 +67,7 @@ if not st.session_state.authenticated:
 
 # --- 3. HOMEPAGE ---
 if st.session_state.page == "home":
-    st.title("Welkom bij het InTheArena Portaal 🚀")
+    st.title("Welkom bij het InTheArena Portaal")
     st.write("Maak een keuze uit de onderstaande tools:")
     
     col1, col2 = st.columns(2)
@@ -95,7 +95,7 @@ elif st.session_state.page == "cv_builder":
     if 'ana_result' not in st.session_state:
         st.session_state.ana_result = None
 
-    st.title("InTheArena CV Builder 🚀")
+    st.title("InTheArena CV Builder")
 
     uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
     job_description = st.text_area("Plak hier de opdracht van de klant:", height=200)
@@ -196,5 +196,6 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
