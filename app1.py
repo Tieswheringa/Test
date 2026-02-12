@@ -9,22 +9,18 @@ from io import BytesIO
 # --- 1. CONFIGURATIE ---
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Functie om de tekst goed in de template te krijgen
+# Functie om de tekst goed in de template te krijgen (Behouden zoals gevraagd)
 def create_formatted_docx(text, is_cv=True):
     doc = Document()
     lines = text.split('\n')
     
     for line in lines:
-        # Verwijder asterisken (*) en andere markdown-resten
         clean_line = line.replace('*', '').replace('#', '').strip()
-        
         if not clean_line: 
             doc.add_paragraph()
             continue
             
         p = doc.add_paragraph()
-        
-        # Echte bullets met streepjes (Hanging Indent)
         if is_cv and clean_line.startswith('-'):
             p.paragraph_format.left_indent = Inches(0.25)
             p.paragraph_format.first_line_indent = Inches(-0.25)
@@ -52,9 +48,11 @@ def create_formatted_docx(text, is_cv=True):
     buffer.seek(0)
     return buffer
 
-# --- 2. LOGIN LOGICA ---
+# --- 2. LOGIN & PAGINA BEHEER ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
+if 'page' not in st.session_state:
+    st.session_state.page = "home"
 
 if not st.session_state.authenticated:
     st.title("InTheArena Portaal")
@@ -67,125 +65,136 @@ if not st.session_state.authenticated:
             st.error("Onjuist wachtwoord.")
     st.stop()
 
-# --- 3. INITIALISEER SESSION STATE ---
-if 'cv_result' not in st.session_state:
-    st.session_state.cv_result = None
-if 'mot_result' not in st.session_state:
-    st.session_state.mot_result = None
-if 'ana_result' not in st.session_state:
-    st.session_state.ana_result = None
-
-st.title("InTheArena CV Builder 🚀")
-
-uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
-job_description = st.text_area("Plak hier de opdracht van de klant:", height=200)
-
-# --- 4. EERSTE GENERATIE ---
-if st.button("Genereer Documenten"):
-    if uploaded_file and job_description:
-        with st.spinner('Bezig met herschrijven...'):
-            reader = PyPDF2.PdfReader(uploaded_file)
-            cv_text = "".join([page.extract_text() for page in reader.pages])
-            
-            # System prompt voor CV
-            cv_system = (
-                "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
-                "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
-                "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
-                "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
-                "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
-                "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
-                "INSTRUCTIES VOOR INHOUD:\n"
-                "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
-                "- Je mag herformuleren, bundelen of ordenen, of verantwoordelijkheden toevoegen mits herleidbaar.\n"
-                "- Kwaliteiten InTheArena: Wij beschikken momenteel over: workshops faciliteren, analyse en structuur aanbrengen, "
-                "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
-                "- Schrijf 100% op basis van de uitvraag: Verwerk de taal en functietermen uit de broker aanvraag.\n"
-                "- Functietitels aanpassen mag alleen als dit logisch is.\n\n"
-                "GEWENSTE STRUCTUUR:\n"
-                "Gebruik PRECIES de volgende structuur en koppen:\n"
-                "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
-                "Kerncompetenties (met bullets)\n"
-                "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets)\n"
-                "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
-                "Opleiding\n"
-                "Cursussen & trainingen\n"
-                "Vaardigheden en competenties\n"
-                "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab."
-                "GEBRUIK GEEN ASTERISKEN *"
-            )
-            
-            
-            # CV Call
-            cv_res = client.chat.completions.create(
-                model="gpt-4o", 
-                messages=[{"role": "system", "content": cv_system},
-                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
-                temperature=0.3
-            )
-            st.session_state.cv_result = cv_res.choices[0].message.content
-
-            # Motivatie Call
-            mot_res = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Geen asterisken (*)."},
-                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
-                temperature=0.4
-            )
-            st.session_state.mot_result = mot_res.choices[0].message.content
-
-            # Analyse Call
-            ana_res = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch. Geen asterisken (*)."},
-                          {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
-                temperature=0.2
-            )
-            st.session_state.ana_result = ana_res.choices[0].message.content
-
-# --- 5. FEEDBACK SECTIE ---
-if st.session_state.cv_result:
-    st.divider()
-    st.subheader("💡 Verfijn het resultaat")
-    feedback = st.text_area("Wat moet er veranderd worden aan het CV?", placeholder="Bijv: Benadruk meer de ervaring met agile werken.")
+# --- 3. HOMEPAGE ---
+if st.session_state.page == "home":
+    st.title("Welkom bij het InTheArena Portaal 🚀")
+    st.write("Maak een keuze uit de onderstaande tools:")
     
-    if st.button("Update CV"):
-        if feedback:
-            with st.spinner('CV wordt aangepast...'):
-                cv_update = client.chat.completions.create(
-                    model="gpt-4o", 
-                    messages=[
-                        {"role": "system", "content": "Pas het CV aan op basis van de feedback. Gebruik GEEN asterisken (*)."},
-                        {"role": "user", "content": f"Huidig CV: {st.session_state.cv_result}\n\nFeedback: {feedback}"}
-                    ],
-                    temperature=0.3
-                )
-                st.session_state.cv_result = cv_update.choices[0].message.content
-                st.success("CV is bijgewerkt!")
-
-    # --- 6. DOWNLOAD SECTIE ---
-    st.divider()
-    st.success("Alle documenten zijn gereed!")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     
     with col1:
-        st.download_button("Download CV", 
-                           data=create_formatted_docx(st.session_state.cv_result, True), 
-                           file_name="Herschreven_CV.docx")
-    
+        if st.button("📄 CV & Motivatie Generator", use_container_width=True):
+            st.session_state.page = "cv_builder"
+            st.rerun()
+            
     with col2:
-        if st.session_state.mot_result:
-            st.download_button("Download Motivatie", 
-                               data=create_formatted_docx(st.session_state.mot_result, False), 
-                               file_name="Motivatie.docx")
-    
-    with col3:
-        if st.session_state.ana_result:
-            st.download_button("Download Analyse", 
-                               data=create_formatted_docx(st.session_state.ana_result, False), 
-                               file_name="Match_Analyse.docx")
+        if st.button("🎯 Test geschiktheid opdracht", use_container_width=True):
+            st.session_state.page = "geschiktheid_test"
+            st.rerun()
 
-    st.info("### Preview Analyse")
-    st.markdown(st.session_state.ana_result.replace('*', ''))
+# --- 4. PAGINA: CV BUILDER (HUIDIGE CODE) ---
+elif st.session_state.page == "cv_builder":
+    if st.sidebar.button("⬅ Terug naar Menu"):
+        st.session_state.page = "home"
+        st.rerun()
+
+    if 'cv_result' not in st.session_state:
+        st.session_state.cv_result = None
+    if 'mot_result' not in st.session_state:
+        st.session_state.mot_result = None
+    if 'ana_result' not in st.session_state:
+        st.session_state.ana_result = None
+
+    st.title("InTheArena CV Builder 🚀")
+
+    uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
+    job_description = st.text_area("Plak hier de opdracht van de klant:", height=200)
+
+    if st.button("Genereer Documenten"):
+        if uploaded_file and job_description:
+            with st.spinner('Bezig met herschrijven...'):
+                reader = PyPDF2.PdfReader(uploaded_file)
+                cv_text = "".join([page.extract_text() for page in reader.pages])
+                
+                cv_system = (
+                    "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
+                    "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
+                    "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+                    "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
+                    "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
+                    "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
+                    "INSTRUCTIES VOOR INHOUD:\n"
+                    "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
+                    "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
+                    "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
+                    "- Schrijf 100% op basis van de uitvraag.\n\n"
+                    "GEWENSTE STRUCTUUR:\n"
+                    "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
+                    "Kerncompetenties (met bullets)\n"
+                    "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets)\n"
+                    "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
+                    "Opleiding\n"
+                    "Cursussen & trainingen\n"
+                    "Vaardigheden en competenties\n"
+                    "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
+                    "GEBRUIK GEEN ASTERISKEN *"
+                )
+                
+                # API Calls
+                cv_res = client.chat.completions.create(
+                    model="gpt-4o", 
+                    messages=[{"role": "system", "content": cv_system},
+                              {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
+                    temperature=0.3
+                )
+                st.session_state.cv_result = cv_res.choices[0].message.content
+
+                mot_res = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Geen asterisken (*)."},
+                              {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
+                    temperature=0.4
+                )
+                st.session_state.mot_result = mot_res.choices[0].message.content
+
+                ana_res = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch. Geen asterisken (*)."},
+                              {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
+                    temperature=0.2
+                )
+                st.session_state.ana_result = ana_res.choices[0].message.content
+
+    # Feedback sectie (behoudt logica)
+    if st.session_state.cv_result:
+        st.divider()
+        st.subheader("💡 Verfijn het resultaat")
+        feedback = st.text_area("Wat moet er veranderd worden?", placeholder="Bijv: Meer focus op projectmanagement.")
+        if st.button("Update CV"):
+            if feedback:
+                with st.spinner('Aanpassen...'):
+                    cv_update = client.chat.completions.create(
+                        model="gpt-4o", 
+                        messages=[{"role": "system", "content": "Pas het CV aan op basis van de feedback. Geen asterisken (*)."},
+                                  {"role": "user", "content": f"Huidig CV: {st.session_state.cv_result}\n\nFeedback: {feedback}"}],
+                        temperature=0.3
+                    )
+                    st.session_state.cv_result = cv_update.choices[0].message.content
+                    st.success("CV is bijgewerkt!")
+
+        # Download sectie
+        st.divider()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.download_button("Download CV", data=create_formatted_docx(st.session_state.cv_result, True), file_name="Herschreven_CV.docx")
+        with col2:
+            if st.session_state.mot_result:
+                st.download_button("Download Motivatie", data=create_formatted_docx(st.session_state.mot_result, False), file_name="Motivatie.docx")
+        with col3:
+            if st.session_state.ana_result:
+                st.download_button("Download Analyse", data=create_formatted_docx(st.session_state.ana_result, False), file_name="Analyse.docx")
+        
+        st.info("### Preview Analyse")
+        st.markdown(st.session_state.ana_result.replace('*', ''))
+
+# --- 5. PAGINA: GESCHIKTHEID TEST (PLACEHOLDER) ---
+elif st.session_state.page == "geschiktheid_test":
+    if st.sidebar.button("⬅ Terug naar Menu"):
+        st.session_state.page = "home"
+        st.rerun()
+
+    st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
+    st.info("Deze module is momenteel in ontwikkeling.")
+    st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
 
 
