@@ -156,21 +156,25 @@ elif st.session_state.page == "cv_builder":
                 st.session_state.ana_result = ana_res.choices[0].message.content
 
     # Feedback sectie (behoudt logica)
-    if st.session_state.cv_result:
-        st.divider()
-        st.subheader("💡 Verfijn het resultaat")
-        feedback = st.text_area("Wat moet er veranderd worden?", placeholder="Bijv: Meer focus op projectmanagement.")
-        if st.button("Update CV"):
-            if feedback:
-                with st.spinner('Aanpassen...'):
-                    cv_update = client.chat.completions.create(
-                        model="gpt-4o", 
-                        messages=[{"role": "system", "content": "Pas het CV aan op basis van de feedback. Geen asterisken (*)."},
-                                  {"role": "user", "content": f"Huidig CV: {st.session_state.cv_result}\n\nFeedback: {feedback}"}],
-                        temperature=0.3
-                    )
-                    st.session_state.cv_result = cv_update.choices[0].message.content
-                    st.success("CV is bijgewerkt!")
+    if st.button("Update CV"):
+        if feedback:
+            with st.spinner('CV wordt volledig herschreven met jouw aanpassingen...'):
+                cv_update = client.chat.completions.create(
+                    model="gpt-4o", 
+                    messages=[
+                        {"role": "system", "content": (
+                            "Jij bent een redacteur. Je krijgt een volledig CV en feedback. "
+                            "Jouw taak is om het VOLLEDIGE CV opnieuw uit te spugen (700-900 woorden), "
+                            "waarbij je EXACT de structuur en de rest van de tekst behoudt, "
+                            "en ENKEL de specifieke wijzigingen uit de feedback doorvoert. "
+                            "Verwijder geen secties! Gebruik GEEN asterisken (*)."
+                        )},
+                        {"role": "user", "content": f"Huidig CV:\n{st.session_state.cv_result}\n\nFeedback van de gebruiker: {feedback}"}
+                    ],
+                    temperature=0.3
+                )
+                st.session_state.cv_result = cv_update.choices[0].message.content
+                st.success("CV is volledig bijgewerkt!")
 
         # Download sectie
         st.divider()
@@ -196,6 +200,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
