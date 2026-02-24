@@ -164,7 +164,7 @@ elif st.session_state.page == "cv_builder":
             if feedback:
                 with st.spinner('CV wordt volledig herschreven met jouw aanpassingen...'):
                     cv_update = client.chat.completions.create(
-                        model="o1-mini", 
+                        model="gpt-4o", 
                         messages=[
                             {"role": "system", "content": (
                                 "Jij bent een redacteur. Je krijgt een volledig CV en feedback. "
@@ -204,6 +204,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
