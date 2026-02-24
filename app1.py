@@ -24,12 +24,15 @@ def create_formatted_docx(text, is_cv=True):
             p = doc.add_paragraph(style='List Bullet')
             # Verwijder het tekstuele streepje omdat Word zelf een bolletje toevoegt
             run_text = clean_line.lstrip('-').strip()
+            p.paragraph_format.space_after = Pt(0)
         else:
             p = doc.add_paragraph()
             run_text = clean_line
+            p.paragraph_format.space_after = Pt(6)
 
-        p.paragraph_format.space_after = 0
-        p.paragraph_format.space_before = 0
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.line_spacing = 1.0
+
         
         run = p.add_run(run_text)
         run.font.name = 'Poppins Light'
@@ -207,6 +210,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
