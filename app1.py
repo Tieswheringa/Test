@@ -20,13 +20,9 @@ def create_formatted_docx(text, is_cv=True):
             continue
             
         if is_cv and clean_line.startswith('-'):
-            # Hier passen we het aan: we gebruiken de List Bullet stijl
             p = doc.add_paragraph(style='List Bullet')
             run_text = clean_line.lstrip('-').strip()
-            # Zet de standaard ruimte op 6pt, maar Word negeert dit tussen bullets 
-            # als we de 'keep with next' of stijl-beperking logica volgen.
             p.paragraph_format.space_after = Pt(6)
-            # Cruciaal: vertel Word om GEEN ruimte toe te voegen tussen paragrafen van DEZELFDE stijl
             p.paragraph_format.keep_together = True 
         else:
             p = doc.add_paragraph()
@@ -36,7 +32,6 @@ def create_formatted_docx(text, is_cv=True):
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.line_spacing = 1.0
 
-        
         run = p.add_run(run_text)
         run.font.name = 'Poppins Light'
         run.font.size = Pt(9)
@@ -62,6 +57,10 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'page' not in st.session_state:
     st.session_state.page = "home"
+
+# Nieuwe state voor versiebeheer
+if 'cv_versions' not in st.session_state:
+    st.session_state.cv_versions = []
 
 if not st.session_state.authenticated:
     st.title("InTheArena Portaal")
@@ -91,14 +90,13 @@ if st.session_state.page == "home":
             st.session_state.page = "geschiktheid_test"
             st.rerun()
 
-# --- 4. PAGINA: CV BUILDER (HUIDIGE CODE) ---
+# --- 4. PAGINA: CV BUILDER ---
 elif st.session_state.page == "cv_builder":
     if st.sidebar.button("⬅ Terug naar Menu"):
         st.session_state.page = "home"
         st.rerun()
 
-    if 'cv_result' not in st.session_state:
-        st.session_state.cv_result = None
+    # Initialiseer resultaten als ze niet bestaan
     if 'mot_result' not in st.session_state:
         st.session_state.mot_result = None
     if 'ana_result' not in st.session_state:
@@ -115,14 +113,15 @@ elif st.session_state.page == "cv_builder":
                 reader = PyPDF2.PdfReader(uploaded_file)
                 cv_text = "".join([page.extract_text() for page in reader.pages])
                 
+                # De system message die je stuurde (Behouden)
                 cv_system = (
-                    "Jij bent mijn AI-assistent voor het professionaliseren van CV’s voor brokerportalen. "
+                    "Jij bent mijn AI-assistent for het professionaliseren van CV’s voor brokerportalen. "
                     "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
                     "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
                     "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
                     "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
                     "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
-                    "BELANGRIJK: Zorg dat de 'Harde Eisen' of eisen waar de kandidaat aan moet voldoen van de opdrachtomschrijving LETTERLIJK terugkomen in de tekst, bij voorkeur in de 'Relevante ervaring' en onder de specifieke functies in de 'Werkervaring'.\n""
+                    "BELANGRIJK: Zorg dat de 'Harde Eisen' of eisen waar de kandidaat aan moet voldoen van de opdrachtomschrijving LETTERLIJK terugkomen in de tekst, bij voorkeur in de 'Relevante ervaring' en onder de specifieke functies in de 'Werkervaring'.\n"
                     "INSTRUCTIES VOOR INHOUD:\n"
                     "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
                     "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
@@ -140,14 +139,14 @@ elif st.session_state.page == "cv_builder":
                     "GEBRUIK GEEN ASTERISKEN *"
                 )
                 
-                # API Calls
                 cv_res = client.chat.completions.create(
                     model="gpt-4o", 
                     messages=[{"role": "system", "content": cv_system},
                               {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
                     temperature=0.3
                 )
-                st.session_state.cv_result = cv_res.choices[0].message.content
+                # Voeg toe aan versielijst
+                st.session_state.cv_versions.append(cv_res.choices[0].message.content)
 
                 mot_res = client.chat.completions.create(
                     model="gpt-4o",
@@ -164,12 +163,24 @@ elif st.session_state.page == "cv_builder":
                     temperature=0.2
                 )
                 st.session_state.ana_result = ana_res.choices[0].message.content
+                st.rerun()
 
-    # Feedback sectie (behoudt logica)
-    if st.session_state.cv_result:
+    # Feedback & Versiebeheer sectie
+    if st.session_state.cv_versions:
         st.divider()
-        st.subheader("💡 Verfijn het resultaat")
-        feedback = st.text_area("Wat moet er veranderd worden?", placeholder="Bijv: Meer focus op projectmanagement.")
+        st.subheader("📚 Versiebeheer & Verfijnen")
+        
+        # Selectbox om tussen versies te schakelen
+        version_options = [f"Versie {i+1}" for i in range(len(st.session_state.cv_versions))]
+        selected_version_index = st.selectbox("Selecteer een CV versie om te bekijken of te updaten:", 
+                                            options=range(len(version_options)), 
+                                            format_func=lambda x: version_options[x],
+                                            index=len(version_options)-1)
+        
+        selected_cv = st.session_state.cv_versions[selected_version_index]
+        
+        feedback = st.text_area("Wat moet er veranderd worden aan de geselecteerde versie?", placeholder="Bijv: Meer focus op projectmanagement.")
+        
         if st.button("Update CV"):
             if feedback:
                 with st.spinner('CV wordt volledig herschreven met jouw aanpassingen...'):
@@ -183,18 +194,21 @@ elif st.session_state.page == "cv_builder":
                                 "en ENKEL de specifieke wijzigingen uit de feedback doorvoert. "
                                 "Verwijder geen secties! Gebruik GEEN asterisken (*)."
                             )},
-                            {"role": "user", "content": f"Huidig CV:\n{st.session_state.cv_result}\n\nFeedback van de gebruiker: {feedback}"}
+                            {"role": "user", "content": f"Huidig CV:\n{selected_cv}\n\nFeedback van de gebruiker: {feedback}"}
                         ],
                         temperature=0.3
                     )
-                    st.session_state.cv_result = cv_update.choices[0].message.content
-                    st.success("CV is volledig bijgewerkt!")
+                    st.session_state.cv_versions.append(cv_update.choices[0].message.content)
+                    st.success("Nieuwe versie is aangemaakt!")
+                    st.rerun()
 
-        # Download sectie
+        # Download sectie gebaseerd op de geselecteerde versie
         st.divider()
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.download_button("Download CV", data=create_formatted_docx(st.session_state.cv_result, True), file_name="Herschreven_CV.docx")
+            st.download_button(f"Download CV ({version_options[selected_version_index]})", 
+                              data=create_formatted_docx(selected_cv, True), 
+                              file_name=f"Herschreven_CV_V{selected_version_index+1}.docx")
         with col2:
             if st.session_state.mot_result:
                 st.download_button("Download Motivatie", data=create_formatted_docx(st.session_state.mot_result, False), file_name="Motivatie.docx")
@@ -203,7 +217,8 @@ elif st.session_state.page == "cv_builder":
                 st.download_button("Download Analyse", data=create_formatted_docx(st.session_state.ana_result, False), file_name="Analyse.docx")
         
         st.info("### Preview Analyse")
-        st.markdown(st.session_state.ana_result.replace('*', ''))
+        if st.session_state.ana_result:
+            st.markdown(st.session_state.ana_result.replace('*', ''))
 
 # --- 5. PAGINA: GESCHIKTHEID TEST (PLACEHOLDER) ---
 elif st.session_state.page == "geschiktheid_test":
@@ -214,6 +229,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
