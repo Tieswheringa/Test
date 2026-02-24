@@ -17,7 +17,6 @@ def create_formatted_docx(text, is_cv=True):
     for line in lines:
         clean_line = line.replace('*', '').replace('#', '').strip()
         if not clean_line: 
-            doc.add_paragraph()
             continue
             
         if is_cv and clean_line.startswith('-'):
@@ -28,6 +27,10 @@ def create_formatted_docx(text, is_cv=True):
         else:
             p = doc.add_paragraph()
             run_text = clean_line
+
+        p.paragraph_format.space_after = 0
+        p.paragraph_format.space_before = 0
+        
         run = p.add_run(run_text)
         run.font.name = 'Poppins Light'
         run.font.size = Pt(9)
@@ -204,6 +207,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
