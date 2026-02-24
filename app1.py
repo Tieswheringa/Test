@@ -122,6 +122,7 @@ elif st.session_state.page == "cv_builder":
                     "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
                     "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
                     "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
+                    "BELANGRIJK: Zorg dat de 'Harde Eisen' of eisen waar de kandidaat aan moet voldoen van de opdrachtomschrijving LETTERLIJK terugkomen in de tekst, bij voorkeur in de 'Relevante ervaring' en onder de specifieke functies in de 'Werkervaring'.\n""
                     "INSTRUCTIES VOOR INHOUD:\n"
                     "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
                     "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
@@ -213,6 +214,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
