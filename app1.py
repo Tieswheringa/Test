@@ -20,14 +20,14 @@ def create_formatted_docx(text, is_cv=True):
             doc.add_paragraph()
             continue
             
-        p = doc.add_paragraph()
         if is_cv and clean_line.startswith('-'):
-            p.paragraph_format.left_indent = Inches(0.25)
-            p.paragraph_format.first_line_indent = Inches(-0.25)
-            run_text = clean_line
+            # We maken een officiële Word bullet-lijst aan
+            p = doc.add_paragraph(style='List Bullet')
+            # Verwijder het tekstuele streepje omdat Word zelf een bolletje toevoegt
+            run_text = clean_line.lstrip('-').strip()
         else:
+            p = doc.add_paragraph()
             run_text = clean_line
-
         run = p.add_run(run_text)
         run.font.name = 'Poppins Light'
         run.font.size = Pt(9)
@@ -204,6 +204,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
