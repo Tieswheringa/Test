@@ -20,11 +20,14 @@ def create_formatted_docx(text, is_cv=True):
             continue
             
         if is_cv and clean_line.startswith('-'):
-            # We maken een officiële Word bullet-lijst aan
+            # Hier passen we het aan: we gebruiken de List Bullet stijl
             p = doc.add_paragraph(style='List Bullet')
-            # Verwijder het tekstuele streepje omdat Word zelf een bolletje toevoegt
             run_text = clean_line.lstrip('-').strip()
-            p.paragraph_format.space_after = Pt(0)
+            # Zet de standaard ruimte op 6pt, maar Word negeert dit tussen bullets 
+            # als we de 'keep with next' of stijl-beperking logica volgen.
+            p.paragraph_format.space_after = Pt(6)
+            # Cruciaal: vertel Word om GEEN ruimte toe te voegen tussen paragrafen van DEZELFDE stijl
+            p.paragraph_format.keep_together = True 
         else:
             p = doc.add_paragraph()
             run_text = clean_line
@@ -210,6 +213,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
