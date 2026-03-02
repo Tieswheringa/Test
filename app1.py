@@ -113,7 +113,7 @@ elif st.session_state.page == "cv_builder":
                 cv_text = "".join([page.extract_text() for page in reader.pages])
                 
                 cv_system = (
-                    cv_system = (
+
     "Jij bent mijn AI-assistent for het professionaliseren van CV’s voor brokerportalen. "
     "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
     "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
@@ -144,7 +144,7 @@ elif st.session_state.page == "cv_builder":
     "Vaardigheden en competenties\n"
     "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
     "GEBRUIK GEEN ASTERISKEN *"
-)
+
                 )
                 
                 cv_res = client.chat.completions.create(
