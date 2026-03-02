@@ -5,39 +5,22 @@ import re
 from docx import Document
 from docx.shared import Pt, Inches
 from io import BytesIO
+import os
 
 # --- 1. CONFIGURATIE ---
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-def extract_text_from_pdf(file_path):
-    try:
-        reader = PyPDF2.PdfReader(file_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text()
-        return text
-    except Exception as e:
-        return f"Fout bij lezen van {file_path}: {e}"
-
-# --- Functie om de database map in te lezen ---
-def load_cv_database():
-    db = {}
-    folder_path = "cv_database" # Deze map staat op GitHub
-    
-    # Controleer of de map bestaat
-    if not os.path.exists(folder_path):
-        st.error(f"Map '{folder_path}' niet gevonden in de repository.")
-        return db
-
-    # Lees alle bestanden in de map
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".pdf"):
-            file_path = os.path.join(folder_path, filename)
-            text = extract_text_from_pdf(file_path)
-            # Gebruik bestandsnaam zonder .pdf als ID
-            db[filename.replace(".pdf", "")] = text
-    
-    return db
+def laad_alle_cvs():
+    cv_map = {}
+    folder = "cv_database"
+    for bestand in os.listdir(folder):
+        if bestand.endswith(".pdf"):
+            with open(os.path.join(folder, bestand), "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                tekst = "".join([p.extract_text() for p in reader.pages])
+                naam = bestand.replace(".pdf", "").replace("_", " ")
+                cv_map[naam] = tekst
+    return cv_map
 
 # Functie om de tekst goed in de template te krijgen (Behouden zoals gevraagd)
 def create_formatted_docx(text, is_cv=True):
@@ -294,70 +277,87 @@ elif st.session_state.page == "geschiktheid_test":
         st.rerun()
 
     st.title("🎯 Test geschiktheid opdracht")
-    st.write("Upload de CV's van de kandidaten en plak de opdrachtomschrijving om de match te analyseren.")
+    cv_database = laad_alle_cvs()
 
-    # 1. Input: Opdrachtomschrijving
-    job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=200)
+    if not cv_database:
+        st.error("⚠️ Geen CV's gevonden in de map `cv_database/`. Voeg PDF-bestanden toe in je GitHub repo.")
+        st.stop()
 
-    # 2. Input: Upload CV's
-    st.subheader("📤 Upload CV's")
-    uploaded_cvs = st.file_uploader(
-        "Selecteer de PDF CV's", 
-        type="pdf", 
-        accept_multiple_files=True
+    st.success(f"✅ {len(cv_database)} CV('s) geladen: {', '.join(cv_database.keys())}")
+    st.divider()
+
+    opdracht = st.text_area("Plak hier de opdracht / functieomschrijving:", height=250,
+                            placeholder="Bijv: Wij zoeken een ervaren projectmanager met kennis van Agile/Scrum...")
+
+    st.subheader("Welke kandidaten wil je toetsen?")
+    alle_namen = list(cv_database.keys())
+    geselecteerde_kandidaten = st.multiselect(
+        "Selecteer kandidaten (laat leeg = iedereen):",
+        options=alle_namen, default=alle_namen
     )
 
-    if st.button("Start Analyse"):
-        if job_description_test and uploaded_cvs:
-            with st.spinner('De AI leest de geüploade CV\'s en beoordeelt de match...'):
-                
-                # Systeemprompt voor diepgaande analyse
-                match_system = (
-                    "Jij bent een Senior Recruiter voor InTheArena. Je krijgt een opdracht en de tekst van meerdere CV's.\n"
-                    "Jouw taak is om de opdracht te vergelijken met de werkervaring in de documenten.\n\n"
-                    "RICHTLIJNEN:\n"
-                    "1. Match op 'Harde Eisen': Zoek naar bewijs dat de kandidaat exact heeft gedaan wat gevraagd wordt.\n"
-                    "2. Beredeneer: Verbind specifieke projecten of resultaten uit het CV aan de opdracht.\n"
-                    "3. InTheArena-factor: Let op ervaring met workshops, implementatie en structuur.\n\n"
-                    "OUTPUT STRUCTUUR:\n"
-                    "### 🏆 Top Match: [Naam]\n"
-                    "**Match Score:** [0-100%]\n"
-                    "**Beredenering:** [Specifieke bewijsvoering uit het CV]\n\n"
-                    "### 🔍 Analyse overige kandidaten\n"
-                    "[Korte toelichting per andere kandidaat]\n\n"
-                    "### 🚩 Risico's\n"
-                    "[Welke eisen ontbreken nog?]"
-                )
-
-                # 3. Tekst uit geüploade PDF's halen
-                cv_contents = ""
-                for cv_file in uploaded_cvs:
-                    # Gebruik PyPDF2 of de file_content_fetcher om tekst te extraheren
-                    # Voor Streamlit file_uploader is PyPDF2 makkelijker:
-                    import PyPDF2
-                    reader = PyPDF2.PdfReader(cv_file)
-                    text = ""
-                    for page in reader.pages:
-                        text += page.extract_text()
-                    cv_contents += f"\n\n--- CV: {cv_file.name} ---\n{text}"
-
-                # 4. API call met de opgehaalde content
-                match_res = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": match_system},
-                        {"role": "user", "content": f"Opdracht:\n{job_description_test}\n\n{cv_contents}"}
-                    ],
-                    temperature=0.2
-                )
-
-                st.divider()
-                st.subheader("Resultaat van de Geschiktheidstest")
-                st.markdown(match_res.choices[0].message.content)
-                
-                # Toon welke bestanden zijn geanalyseerd
-                st.write("**Geanalyseerde bestanden:**")
-                for cv_file in uploaded_cvs:
-                    st.write(f"- {cv_file.name}")
+    if st.button("🔍 Analyseer geschiktheid", type="primary"):
+        if not opdracht:
+            st.warning("Vul eerst een opdracht in.")
+        elif not geselecteerde_kandidaten:
+            st.warning("Selecteer minimaal één kandidaat.")
         else:
-            st.warning("Zorg dat je zowel een opdrachtomschrijving hebt geplakt als CV's hebt geüpload.")
+            resultaten = []
+            progress = st.progress(0, text="Bezig met analyseren...")
+            totaal = len(geselecteerde_kandidaten)
+
+            for i, naam in enumerate(geselecteerde_kandidaten):
+                progress.progress(i / totaal, text=f"Analyseer {naam}...")
+                systeem_prompt = (
+                    "Jij bent een kritische HR-specialist bij InTheArena. "
+                    "Beoordeel of de consultant geschikt is voor de opdracht, beoordeel op harde eisen als daar niet aan voldaan wordt voldoet de kandidaat niet. "
+                    "Beredeneer: Verbind specifieke projecten of resultaten uit het CV aan de opdracht.\n"
+                    "InTheArena-factor: Let op ervaring met workshops, implementatie en structuur.\n\n"
+                    "Geef je analyse UITSLUITEND als JSON zonder extra tekst:\n"
+                    '{"score": <0-100>, "advies": "<Geschikt / Mogelijk geschikt / Niet geschikt>", '
+                    '"sterke_punten": ["...", "..."], "tekortkomingen": ["...", "..."], '
+                    '"samenvatting": "<2-3 zinnen>"}\n'
+                    "Wees eerlijk. Verzin niets wat niet in het CV staat."
+                )
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": systeem_prompt},
+                            {"role": "user", "content": f"Opdracht:\n{opdracht}\n\nCV van {naam}:\n{cv_database[naam]}"}
+                        ],
+                        temperature=0.2
+                    )
+                    raw = response.choices[0].message.content.strip()
+                    clean = re.sub(r"```json|```", "", raw).strip()
+                    data = json.loads(clean)
+                    data["naam"] = naam
+                    resultaten.append(data)
+                except Exception as e:
+                    resultaten.append({"naam": naam, "score": 0, "advies": "Fout",
+                                       "sterke_punten": [], "tekortkomingen": [],
+                                       "samenvatting": f"Kon niet analyseren: {e}"})
+
+            progress.progress(1.0, text="Klaar!")
+            resultaten.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+            st.divider()
+            st.subheader("📊 Resultaten")
+            for r in resultaten:
+                score = r.get("score", 0)
+                kleur = "🟢" if score >= 70 else ("🟡" if score >= 45 else "🔴")
+                with st.expander(f"{kleur} **{r['naam']}** — {score}/100 | {r.get('advies','')}", expanded=True):
+                    st.markdown(f"**📝 Samenvatting:** {r.get('samenvatting', '-')}")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**✅ Sterke punten:**")
+                        for p in r.get("sterke_punten", []): st.markdown(f"- {p}")
+                    with col2:
+                        st.markdown("**⚠️ Tekortkomingen:**")
+                        for p in r.get("tekortkomingen", []): st.markdown(f"- {p}")
+
+            st.divider()
+            st.subheader("🏆 Rangschikking")
+            for r in resultaten:
+                st.markdown(f"**{r['naam']}**")
+                st.progress(r.get("score", 0) / 100, text=f"{r.get('score',0)}/100 — {r.get('advies','')}")
