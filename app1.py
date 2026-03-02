@@ -287,49 +287,36 @@ elif st.session_state.page == "cv_builder":
         if selected_ana:
             st.markdown(selected_ana.replace('*', ''))
 
-# --- 5. PAGINA: GESCHIKTHEID TEST (Gecorrigeerd) ---
+# --- 5. PAGINA: GESCHIKTHEID TEST (Upload & Analyse) ---
 elif st.session_state.page == "geschiktheid_test":
     if st.sidebar.button("⬅ Terug naar Menu"):
         st.session_state.page = "home"
         st.rerun()
 
     st.title("🎯 Test geschiktheid opdracht")
-    st.write("De AI analyseert de geüploade CV's om de perfecte match te vinden.")
+    st.write("Upload de CV's van de kandidaten en plak de opdrachtomschrijving om de match te analyseren.")
 
-    job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=300)
+    # 1. Input: Opdrachtomschrijving
+    job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=200)
 
-    # Identificatie van de geüploade bestanden (gebruik de exacte namen uit de metadata)
-    # Zorg dat deze namen exact overeenkomen met de files die je hebt geüpload!
-    file_mapping = {
-        "Max van den Top": "CV_MaxvandenTop_VNG.pdf",
-        "Micha Sjoerts": "CV_Micha_Sjoerts_KOOPPDF.pdf",
-        "Wendy van den Brink": "Cvwendy.pdf"
-    }
+    # 2. Input: Upload CV's
+    st.subheader("📤 Upload CV's")
+    uploaded_cvs = st.file_uploader(
+        "Selecteer de PDF CV's", 
+        type="pdf", 
+        accept_multiple_files=True
+    )
 
-    if st.button("Start Diepgaande Analyse"):
-        if job_description_test:
-            with st.spinner('De AI leest de volledige CV\'s en beoordeelt de match...'):
+    if st.button("Start Analyse"):
+        if job_description_test and uploaded_cvs:
+            with st.spinner('De AI leest de geüploade CV\'s en beoordeelt de match...'):
                 
-                # 1. Content ophalen via file_content_fetcher
-                # Deze tool haalt de tekst op van de geüploade bestanden
-                try:
-                    # Hier wordt de tool aangeroepen om de inhoud van de files te lezen
-                    cv_texts = client.files.content.fetch(
-                        query="Haal de volledige tekst op van de CV's",
-                        source_references=list(file_mapping.values())
-                    )
-                    
-                    # 2. Inhoud structureren voor de prompt
-                    cv_data_for_prompt = f"CV Data:\n{cv_texts}"
-                except Exception as e:
-                    cv_data_for_prompt = f"Fout bij het ophalen van CV data: {e}"
-
                 # Systeemprompt voor diepgaande analyse
                 match_system = (
-                    "Jij bent een Senior Recruiter voor InTheArena. Je hebt zojuist de volledige tekst van de CV's van onze consultants ontvangen.\n"
-                    "Jouw taak is om de opdracht te vergelijken met de volledige werkervaring in de documenten.\n\n"
+                    "Jij bent een Senior Recruiter voor InTheArena. Je krijgt een opdracht en de tekst van meerdere CV's.\n"
+                    "Jouw taak is om de opdracht te vergelijken met de werkervaring in de documenten.\n\n"
                     "RICHTLIJNEN:\n"
-                    "1. Match op 'Harde Eisen': Zoek naar bewijs dat de kandidaat exact heeft gedaan wat gevraagd wordt (bijv. specifieke systemen, Rijksoverheid, ervaringstermijnen).\n"
+                    "1. Match op 'Harde Eisen': Zoek naar bewijs dat de kandidaat exact heeft gedaan wat gevraagd wordt.\n"
                     "2. Beredeneer: Verbind specifieke projecten of resultaten uit het CV aan de opdracht.\n"
                     "3. InTheArena-factor: Let op ervaring met workshops, implementatie en structuur.\n\n"
                     "OUTPUT STRUCTUUR:\n"
@@ -337,17 +324,29 @@ elif st.session_state.page == "geschiktheid_test":
                     "**Match Score:** [0-100%]\n"
                     "**Beredenering:** [Specifieke bewijsvoering uit het CV]\n\n"
                     "### 🔍 Analyse overige kandidaten\n"
-                    "[Korte toelichting per andere consultant]\n\n"
+                    "[Korte toelichting per andere kandidaat]\n\n"
                     "### 🚩 Risico's\n"
                     "[Welke eisen ontbreken nog?]"
                 )
 
-                # 3. API call met de opgehaalde content
+                # 3. Tekst uit geüploade PDF's halen
+                cv_contents = ""
+                for cv_file in uploaded_cvs:
+                    # Gebruik PyPDF2 of de file_content_fetcher om tekst te extraheren
+                    # Voor Streamlit file_uploader is PyPDF2 makkelijker:
+                    import PyPDF2
+                    reader = PyPDF2.PdfReader(cv_file)
+                    text = ""
+                    for page in reader.pages:
+                        text += page.extract_text()
+                    cv_contents += f"\n\n--- CV: {cv_file.name} ---\n{text}"
+
+                # 4. API call met de opgehaalde content
                 match_res = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
                         {"role": "system", "content": match_system},
-                        {"role": "user", "content": f"Opdracht:\n{job_description_test}\n\n{cv_data_for_prompt}"}
+                        {"role": "user", "content": f"Opdracht:\n{job_description_test}\n\n{cv_contents}"}
                     ],
                     temperature=0.2
                 )
@@ -355,5 +354,10 @@ elif st.session_state.page == "geschiktheid_test":
                 st.divider()
                 st.subheader("Resultaat van de Geschiktheidstest")
                 st.markdown(match_res.choices[0].message.content)
+                
+                # Toon welke bestanden zijn geanalyseerd
+                st.write("**Geanalyseerde bestanden:**")
+                for cv_file in uploaded_cvs:
+                    st.write(f"- {cv_file.name}")
         else:
-            st.warning("Plak eerst een opdrachtomschrijving.")
+            st.warning("Zorg dat je zowel een opdrachtomschrijving hebt geplakt als CV's hebt geüpload.")
