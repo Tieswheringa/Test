@@ -58,9 +58,14 @@ if 'authenticated' not in st.session_state:
 if 'page' not in st.session_state:
     st.session_state.page = "home"
 
-# Nieuwe state voor versiebeheer
+# State voor versiebeheer
 if 'cv_versions' not in st.session_state:
     st.session_state.cv_versions = []
+# State voor motivatie en analyse per versie
+if 'mot_versions' not in st.session_state:
+    st.session_state.mot_versions = []
+if 'ana_versions' not in st.session_state:
+    st.session_state.ana_versions = []
 
 if not st.session_state.authenticated:
     st.title("InTheArena Portaal")
@@ -96,12 +101,6 @@ elif st.session_state.page == "cv_builder":
         st.session_state.page = "home"
         st.rerun()
 
-    # Initialiseer resultaten als ze niet bestaan
-    if 'mot_result' not in st.session_state:
-        st.session_state.mot_result = None
-    if 'ana_result' not in st.session_state:
-        st.session_state.ana_result = None
-
     st.title("InTheArena CV Builder")
 
     uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
@@ -113,9 +112,8 @@ elif st.session_state.page == "cv_builder":
                 reader = PyPDF2.PdfReader(uploaded_file)
                 cv_text = "".join([page.extract_text() for page in reader.pages])
                 
-                # De system message die je stuurde (Behouden)
                 cv_system = (
-                    "Jij bent mijn AI-assistent for het professionaliseren van CV’s voor brokerportalen. "
+                    "Jij bent mijn AI-assistent for het professionaliseren van CV's voor brokerportalen. "
                     "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
                     "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
                     "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
@@ -145,7 +143,6 @@ elif st.session_state.page == "cv_builder":
                               {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
                     temperature=0.3
                 )
-                # Voeg toe aan versielijst
                 st.session_state.cv_versions.append(cv_res.choices[0].message.content)
 
                 mot_res = client.chat.completions.create(
@@ -154,7 +151,7 @@ elif st.session_state.page == "cv_builder":
                               {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
                     temperature=0.4
                 )
-                st.session_state.mot_result = mot_res.choices[0].message.content
+                st.session_state.mot_versions.append(mot_res.choices[0].message.content)
 
                 ana_res = client.chat.completions.create(
                     model="gpt-4o",
@@ -162,7 +159,7 @@ elif st.session_state.page == "cv_builder":
                               {"role": "user", "content": f"Opdracht: {job_description}\n\nCV: {cv_text}"}],
                     temperature=0.2
                 )
-                st.session_state.ana_result = ana_res.choices[0].message.content
+                st.session_state.ana_versions.append(ana_res.choices[0].message.content)
                 st.rerun()
 
     # Feedback & Versiebeheer sectie
@@ -170,7 +167,6 @@ elif st.session_state.page == "cv_builder":
         st.divider()
         st.subheader("📚 Versiebeheer & Verfijnen")
         
-        # Selectbox om tussen versies te schakelen
         version_options = [f"Versie {i+1}" for i in range(len(st.session_state.cv_versions))]
         selected_version_index = st.selectbox("Selecteer een CV versie om te bekijken of te updaten:", 
                                             options=range(len(version_options)), 
@@ -178,12 +174,15 @@ elif st.session_state.page == "cv_builder":
                                             index=len(version_options)-1)
         
         selected_cv = st.session_state.cv_versions[selected_version_index]
-        
+        selected_mot = st.session_state.mot_versions[selected_version_index] if selected_version_index < len(st.session_state.mot_versions) else None
+        selected_ana = st.session_state.ana_versions[selected_version_index] if selected_version_index < len(st.session_state.ana_versions) else None
+
         feedback = st.text_area("Wat moet er veranderd worden aan de geselecteerde versie?", placeholder="Bijv: Meer focus op projectmanagement.")
         
         if st.button("Update CV"):
             if feedback:
-                with st.spinner('CV wordt volledig herschreven met jouw aanpassingen...'):
+                with st.spinner('CV, motivatiebrief en analyse worden bijgewerkt...'):
+                    # Update CV
                     cv_update = client.chat.completions.create(
                         model="gpt-4o", 
                         messages=[
@@ -198,8 +197,32 @@ elif st.session_state.page == "cv_builder":
                         ],
                         temperature=0.3
                     )
-                    st.session_state.cv_versions.append(cv_update.choices[0].message.content)
-                    st.success("Nieuwe versie is aangemaakt!")
+                    new_cv = cv_update.choices[0].message.content
+                    st.session_state.cv_versions.append(new_cv)
+
+                    # Automatisch nieuwe motivatiebrief genereren op basis van het bijgewerkte CV
+                    mot_update = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl op basis van het bijgewerkte CV. Geen asterisken (*)."},
+                            {"role": "user", "content": f"Bijgewerkt CV:\n{new_cv}"}
+                        ],
+                        temperature=0.4
+                    )
+                    st.session_state.mot_versions.append(mot_update.choices[0].message.content)
+
+                    # Automatisch nieuwe analyse genereren op basis van het bijgewerkte CV
+                    ana_update = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[
+                            {"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch op basis van het bijgewerkte CV. Geen asterisken (*)."},
+                            {"role": "user", "content": f"Bijgewerkt CV:\n{new_cv}"}
+                        ],
+                        temperature=0.2
+                    )
+                    st.session_state.ana_versions.append(ana_update.choices[0].message.content)
+
+                    st.success("Nieuwe versie aangemaakt — inclusief bijgewerkte motivatiebrief en analyse!")
                     st.rerun()
 
         # Download sectie gebaseerd op de geselecteerde versie
@@ -210,15 +233,19 @@ elif st.session_state.page == "cv_builder":
                               data=create_formatted_docx(selected_cv, True), 
                               file_name=f"Herschreven_CV_V{selected_version_index+1}.docx")
         with col2:
-            if st.session_state.mot_result:
-                st.download_button("Download Motivatie", data=create_formatted_docx(st.session_state.mot_result, False), file_name="Motivatie.docx")
+            if selected_mot:
+                st.download_button(f"Download Motivatie ({version_options[selected_version_index]})", 
+                                   data=create_formatted_docx(selected_mot, False), 
+                                   file_name=f"Motivatie_V{selected_version_index+1}.docx")
         with col3:
-            if st.session_state.ana_result:
-                st.download_button("Download Analyse", data=create_formatted_docx(st.session_state.ana_result, False), file_name="Analyse.docx")
+            if selected_ana:
+                st.download_button(f"Download Analyse ({version_options[selected_version_index]})", 
+                                   data=create_formatted_docx(selected_ana, False), 
+                                   file_name=f"Analyse_V{selected_version_index+1}.docx")
         
         st.info("### Preview Analyse")
-        if st.session_state.ana_result:
-            st.markdown(st.session_state.ana_result.replace('*', ''))
+        if selected_ana:
+            st.markdown(selected_ana.replace('*', ''))
 
 # --- 5. PAGINA: GESCHIKTHEID TEST (PLACEHOLDER) ---
 elif st.session_state.page == "geschiktheid_test":
@@ -229,13 +256,6 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
-
-
-
-
-
-
-
 
 
 
