@@ -444,7 +444,7 @@ elif st.session_state.page == "geschiktheid_test":
                         
 
                         st.session_state.page = "cv_builder"
-                        st.rerun()
+                        
 
 
 
