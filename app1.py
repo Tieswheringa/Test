@@ -287,7 +287,7 @@ elif st.session_state.page == "cv_builder":
         if selected_ana:
             st.markdown(selected_ana.replace('*', ''))
 
-# --- 5. PAGINA: GESCHIKTHEID TEST ---
+# --- 5. PAGINA: GESCHIKTHEID TEST (Gecorrigeerd) ---
 elif st.session_state.page == "geschiktheid_test":
     if st.sidebar.button("⬅ Terug naar Menu"):
         st.session_state.page = "home"
@@ -298,7 +298,8 @@ elif st.session_state.page == "geschiktheid_test":
 
     job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=300)
 
-    # Identificatie van de geüploade bestanden (gebruik de exacte namen)
+    # Identificatie van de geüploade bestanden (gebruik de exacte namen uit de metadata)
+    # Zorg dat deze namen exact overeenkomen met de files die je hebt geüpload!
     file_mapping = {
         "Max van den Top": "CV_MaxvandenTop_VNG.pdf",
         "Micha Sjoerts": "CV_Micha_Sjoerts_KOOPPDF.pdf",
@@ -312,6 +313,7 @@ elif st.session_state.page == "geschiktheid_test":
                 # 1. Content ophalen via file_content_fetcher
                 # Deze tool haalt de tekst op van de geüploade bestanden
                 try:
+                    # Hier wordt de tool aangeroepen om de inhoud van de files te lezen
                     cv_texts = client.files.content.fetch(
                         query="Haal de volledige tekst op van de CV's",
                         source_references=list(file_mapping.values())
