@@ -257,18 +257,76 @@ elif st.session_state.page == "cv_builder":
         if selected_ana:
             st.markdown(selected_ana.replace('*', ''))
 
-# --- 5. PAGINA: GESCHIKTHEID TEST (PLACEHOLDER) ---
+# --- 5. PAGINA: GESCHIKTHEID TEST ---
 elif st.session_state.page == "geschiktheid_test":
     if st.sidebar.button("⬅ Terug naar Menu"):
         st.session_state.page = "home"
         st.rerun()
 
-    st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
-    st.info("Deze module is momenteel in ontwikkeling.")
-    st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+    st.title("🎯 Test geschiktheid opdracht")
+    st.write("De AI analyseert de geüploade CV's om de perfecte match te vinden.")
 
+    # 1. Functie om PDF tekst te extraheren
+    def extract_text_from_pdf(file_path):
+        reader = PyPDF2.PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
+        return text
 
+    # 2. Database vullen met geüploade bestanden
+    # Let op: Deze bestandsnamen moeten exact overeenkomen met wat je hebt geüpload
+    cv_files = {
+        "Max van den Top": "CV_MaxvandenTop_VNG.pdf",
+        "Micha Sjoerts": "CV_Micha_Sjoerts_KOOPPDF.pdf",
+        "Wendy van den Brink": "Cvwendy.pdf"
+    }
 
+    # 3. Input opdracht
+    job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=300)
 
+    if st.button("Start Diepgaande Analyse"):
+        if job_description_test:
+            with st.spinner('De AI leest de volledige CV\'s en beoordeelt de match...'):
+                
+                # Tekst uit PDF's halen
+                cv_contents = {}
+                for name, filename in cv_files.items():
+                    try:
+                        cv_contents[name] = extract_text_from_pdf(filename)
+                    except FileNotFoundError:
+                        cv_contents[name] = f"CV bestand {filename} niet gevonden."
 
+                # Systeemprompt voor diepgaande analyse
+                match_system = (
+                    "Jij bent een Senior Recruiter voor InTheArena. Je hebt toegang tot de volledige tekst van de CV's van onze consultants.\n"
+                    "Jouw taak is om de opdracht te vergelijken met de volledige werkervaring in de documenten.\n\n"
+                    "RICHTLIJNEN:\n"
+                    "1. Match op 'Harde Eisen': Zoek naar bewijs dat de kandidaat exact heeft gedaan wat gevraagd wordt.\n"
+                    "2. Beredeneer: Verbind specifieke projecten of resultaten uit het CV aan de opdracht.\n"
+                    "3. InTheArena-factor: Let op ervaring met workshops, implementatie en structuur.\n\n"
+                    "OUTPUT STRUCTUUR:\n"
+                    "### 🏆 Top Match: [Naam]\n"
+                    "**Match Score:** [0-100%]\n"
+                    "**Beredenering:** [Specifieke bewijsvoering uit het CV]\n\n"
+                    "### 🔍 Analyse overige kandidaten\n"
+                    "[Korte toelichting per andere consultant]\n\n"
+                    "### 🚩 Risico's\n"
+                    "[Welke eisen ontbreken nog?]"
+                )
 
+                # API call
+                match_res = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": match_system},
+                        {"role": "user", "content": f"Opdracht:\n{job_description_test}\n\nCV Data:\n{str(cv_contents)}"}
+                    ],
+                    temperature=0.2
+                )
+
+                st.divider()
+                st.subheader("Resultaat van de Geschiktheidstest")
+                st.markdown(match_res.choices[0].message.content)
+        else:
+            st.warning("Plak eerst een opdrachtomschrijving.")
