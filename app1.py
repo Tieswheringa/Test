@@ -9,6 +9,36 @@ from io import BytesIO
 # --- 1. CONFIGURATIE ---
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+def extract_text_from_pdf(file_path):
+    try:
+        reader = PyPDF2.PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text()
+        return text
+    except Exception as e:
+        return f"Fout bij lezen van {file_path}: {e}"
+
+# --- Functie om de database map in te lezen ---
+def load_cv_database():
+    db = {}
+    folder_path = "cv_database" # Deze map staat op GitHub
+    
+    # Controleer of de map bestaat
+    if not os.path.exists(folder_path):
+        st.error(f"Map '{folder_path}' niet gevonden in de repository.")
+        return db
+
+    # Lees alle bestanden in de map
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".pdf"):
+            file_path = os.path.join(folder_path, filename)
+            text = extract_text_from_pdf(file_path)
+            # Gebruik bestandsnaam zonder .pdf als ID
+            db[filename.replace(".pdf", "")] = text
+    
+    return db
+
 # Functie om de tekst goed in de template te krijgen (Behouden zoals gevraagd)
 def create_formatted_docx(text, is_cv=True):
     doc = Document()
@@ -266,43 +296,38 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht")
     st.write("De AI analyseert de geüploade CV's om de perfecte match te vinden.")
 
-    # 1. Functie om PDF tekst te extraheren
-    def extract_text_from_pdf(file_path):
-        reader = PyPDF2.PdfReader(file_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text()
-        return text
+    job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=300)
 
-    # 2. Database vullen met geüploade bestanden
-    # Let op: Deze bestandsnamen moeten exact overeenkomen met wat je hebt geüpload
-    cv_files = {
+    # Identificatie van de geüploade bestanden (gebruik de exacte namen)
+    file_mapping = {
         "Max van den Top": "CV_MaxvandenTop_VNG.pdf",
         "Micha Sjoerts": "CV_Micha_Sjoerts_KOOPPDF.pdf",
         "Wendy van den Brink": "Cvwendy.pdf"
     }
 
-    # 3. Input opdracht
-    job_description_test = st.text_area("Plak hier de opdrachtomschrijving:", height=300)
-
     if st.button("Start Diepgaande Analyse"):
         if job_description_test:
             with st.spinner('De AI leest de volledige CV\'s en beoordeelt de match...'):
                 
-                # Tekst uit PDF's halen
-                cv_contents = {}
-                for name, filename in cv_files.items():
-                    try:
-                        cv_contents[name] = extract_text_from_pdf(filename)
-                    except FileNotFoundError:
-                        cv_contents[name] = f"CV bestand {filename} niet gevonden."
+                # 1. Content ophalen via file_content_fetcher
+                # Deze tool haalt de tekst op van de geüploade bestanden
+                try:
+                    cv_texts = client.files.content.fetch(
+                        query="Haal de volledige tekst op van de CV's",
+                        source_references=list(file_mapping.values())
+                    )
+                    
+                    # 2. Inhoud structureren voor de prompt
+                    cv_data_for_prompt = f"CV Data:\n{cv_texts}"
+                except Exception as e:
+                    cv_data_for_prompt = f"Fout bij het ophalen van CV data: {e}"
 
                 # Systeemprompt voor diepgaande analyse
                 match_system = (
-                    "Jij bent een Senior Recruiter voor InTheArena. Je hebt toegang tot de volledige tekst van de CV's van onze consultants.\n"
+                    "Jij bent een Senior Recruiter voor InTheArena. Je hebt zojuist de volledige tekst van de CV's van onze consultants ontvangen.\n"
                     "Jouw taak is om de opdracht te vergelijken met de volledige werkervaring in de documenten.\n\n"
                     "RICHTLIJNEN:\n"
-                    "1. Match op 'Harde Eisen': Zoek naar bewijs dat de kandidaat exact heeft gedaan wat gevraagd wordt.\n"
+                    "1. Match op 'Harde Eisen': Zoek naar bewijs dat de kandidaat exact heeft gedaan wat gevraagd wordt (bijv. specifieke systemen, Rijksoverheid, ervaringstermijnen).\n"
                     "2. Beredeneer: Verbind specifieke projecten of resultaten uit het CV aan de opdracht.\n"
                     "3. InTheArena-factor: Let op ervaring met workshops, implementatie en structuur.\n\n"
                     "OUTPUT STRUCTUUR:\n"
@@ -315,12 +340,12 @@ elif st.session_state.page == "geschiktheid_test":
                     "[Welke eisen ontbreken nog?]"
                 )
 
-                # API call
+                # 3. API call met de opgehaalde content
                 match_res = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
                         {"role": "system", "content": match_system},
-                        {"role": "user", "content": f"Opdracht:\n{job_description_test}\n\nCV Data:\n{str(cv_contents)}"}
+                        {"role": "user", "content": f"Opdracht:\n{job_description_test}\n\n{cv_data_for_prompt}"}
                     ],
                     temperature=0.2
                 )
