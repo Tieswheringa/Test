@@ -129,13 +129,17 @@ elif st.session_state.page == "cv_builder":
     st.title("InTheArena CV Builder")
 
     # --- Automatisch laden vanuit geschiktheidstest ---
-    if st.session_state.preload_cv_tekst:
-        st.info(f"📋 CV van **{st.session_state.preload_naam}** is voorgeladen vanuit de geschiktheidstest.")
+    if st.session_state.preload_cv_tekst and st.session_state.preload_opdracht:
         
-        with st.spinner(f"CV van {st.session_state.preload_naam} wordt automatisch herschreven..."):
-            cv_text = st.session_state.preload_cv_tekst
-            job_description_auto = st.session_state.preload_opdracht
-    
+        # Tijdelijke placeholders ophalen
+        cv_text = st.session_state.preload_cv_tekst
+        job_description_auto = st.session_state.preload_opdracht
+        naam = st.session_state.preload_naam
+        
+        st.info(f"📋 CV van **{naam}** wordt automatisch herschreven voor de opdracht...")
+        
+        with st.spinner(f"AI is bezig met herschrijven..."):
+            # De prompt voor herschrijven
             cv_system = (
                 "Jij bent mijn AI-assistent for het professionaliseren van CV's voor brokerportalen. "
                 "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
@@ -159,35 +163,42 @@ elif st.session_state.page == "cv_builder":
                 "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
                 "GEBRUIK GEEN ASTERISKEN *"
             )
-    
+
+            # CV Herschrijven
             cv_res = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "system", "content": cv_system},
                           {"role": "user", "content": f"Opdracht: {job_description_auto}\n\nCV: {cv_text}"}],
                 temperature=0.3
             )
-            st.session_state.cv_versions.append(cv_res.choices[0].message.content)
-    
+            
+            # Motivatie genereren
             mot_res = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Geen asterisken (*)."},
                           {"role": "user", "content": f"Opdracht: {job_description_auto}\n\nCV: {cv_text}"}],
                 temperature=0.4
             )
-            st.session_state.mot_versions.append(mot_res.choices[0].message.content)
-    
+            
+            # Analyse genereren
             ana_res = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch. Geen asterisken (*)."},
                           {"role": "user", "content": f"Opdracht: {job_description_auto}\n\nCV: {cv_text}"}],
                 temperature=0.2
             )
+
+            # Resultaten opslaan in sessie
+            st.session_state.cv_versions.append(cv_res.choices[0].message.content)
+            st.session_state.mot_versions.append(mot_res.choices[0].message.content)
             st.session_state.ana_versions.append(ana_res.choices[0].message.content)
-    
-            # Preload leegmaken zodat het niet opnieuw triggert
+
+            # Preload leegmaken zodat het niet opnieuw triggert bij een refresh
             st.session_state.preload_cv_tekst = None
             st.session_state.preload_opdracht = None
             st.session_state.preload_naam = None
+            
+            # Rerun om de nieuwe versie te tonen
             st.rerun()
     
     # Normale upload flow (alleen tonen als er geen preload actief is)
@@ -432,5 +443,6 @@ elif st.session_state.page == "geschiktheid_test":
                         st.session_state.ana_versions = []
                         st.session_state.page = "cv_builder"
                         st.rerun()
+
 
 
