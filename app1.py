@@ -437,12 +437,15 @@ elif st.session_state.page == "geschiktheid_test":
                         st.session_state.preload_cv_tekst = cv_database[r['naam']]
                         st.session_state.preload_opdracht = opdracht
                         st.session_state.preload_naam = r['naam']
-                        # Reset versies zodat je met een schone lei begint
+
                         st.session_state.cv_versions = []
                         st.session_state.mot_versions = []
                         st.session_state.ana_versions = []
+                        
+
                         st.session_state.page = "cv_builder"
                         st.rerun()
+
 
 
 
