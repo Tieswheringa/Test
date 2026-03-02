@@ -6,6 +6,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from io import BytesIO
 import os
+import json
 
 # --- 1. CONFIGURATIE ---
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -361,3 +362,4 @@ elif st.session_state.page == "geschiktheid_test":
             for r in resultaten:
                 st.markdown(f"**{r['naam']}**")
                 st.progress(r.get("score", 0) / 100, text=f"{r.get('score',0)}/100 — {r.get('advies','')}")
+
