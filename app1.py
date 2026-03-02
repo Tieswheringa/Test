@@ -81,6 +81,13 @@ if 'mot_versions' not in st.session_state:
 if 'ana_versions' not in st.session_state:
     st.session_state.ana_versions = []
 
+if 'preload_cv_tekst' not in st.session_state:
+    st.session_state.preload_cv_tekst = None
+if 'preload_opdracht' not in st.session_state:
+    st.session_state.preload_opdracht = None
+if 'preload_naam' not in st.session_state:
+    st.session_state.preload_naam = None
+
 if not st.session_state.authenticated:
     st.title("InTheArena Portaal")
     password = st.text_input("Voer het wachtwoord in:", type="password")
@@ -117,6 +124,69 @@ elif st.session_state.page == "cv_builder":
 
     st.title("InTheArena CV Builder")
 
+    # --- Automatisch laden vanuit geschiktheidstest ---
+    if st.session_state.preload_cv_tekst:
+        st.info(f"📋 CV van **{st.session_state.preload_naam}** is voorgeladen vanuit de geschiktheidstest.")
+        
+        with st.spinner(f"CV van {st.session_state.preload_naam} wordt automatisch herschreven..."):
+            cv_text = st.session_state.preload_cv_tekst
+            job_description_auto = st.session_state.preload_opdracht
+    
+            cv_system = (
+                "Jij bent mijn AI-assistent for het professionaliseren van CV's voor brokerportalen. "
+                "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
+                "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+                "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
+                "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
+                "BELANGRIJK: Zorg dat de 'Harde Eisen' van de opdrachtomschrijving LETTERLIJK terugkomen in de tekst.\n"
+                "INSTRUCTIES VOOR INHOUD:\n"
+                "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
+                "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
+                "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
+                "- Schrijf 100% op basis van de uitvraag.\n\n"
+                "GEWENSTE STRUCTUUR:\n"
+                "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
+                "Kerncompetenties (met bullets)\n"
+                "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets)\n"
+                "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
+                "Opleiding\n"
+                "Cursussen & trainingen\n"
+                "Vaardigheden en competenties\n"
+                "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
+                "GEBRUIK GEEN ASTERISKEN *"
+            )
+    
+            cv_res = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": cv_system},
+                          {"role": "user", "content": f"Opdracht: {job_description_auto}\n\nCV: {cv_text}"}],
+                temperature=0.3
+            )
+            st.session_state.cv_versions.append(cv_res.choices[0].message.content)
+    
+            mot_res = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Geen asterisken (*)."},
+                          {"role": "user", "content": f"Opdracht: {job_description_auto}\n\nCV: {cv_text}"}],
+                temperature=0.4
+            )
+            st.session_state.mot_versions.append(mot_res.choices[0].message.content)
+    
+            ana_res = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch. Geen asterisken (*)."},
+                          {"role": "user", "content": f"Opdracht: {job_description_auto}\n\nCV: {cv_text}"}],
+                temperature=0.2
+            )
+            st.session_state.ana_versions.append(ana_res.choices[0].message.content)
+    
+            # Preload leegmaken zodat het niet opnieuw triggert
+            st.session_state.preload_cv_tekst = None
+            st.session_state.preload_opdracht = None
+            st.session_state.preload_naam = None
+            st.rerun()
+    
+    # Normale upload flow (alleen tonen als er geen preload actief is)
     uploaded_file = st.file_uploader("Upload het originele CV (PDF)", type="pdf")
     job_description = st.text_area("Plak hier de opdracht van de klant:", height=200)
 
@@ -127,38 +197,28 @@ elif st.session_state.page == "cv_builder":
                 cv_text = "".join([page.extract_text() for page in reader.pages])
                 
                 cv_system = (
-
-    "Jij bent mijn AI-assistent for het professionaliseren van CV’s voor brokerportalen. "
-    "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
-    "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
-    
-    "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
-    "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
-    "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
-    
-    "CRUCIAAL: MAPPING VAN ERVARING AAN EISEN\n"
-    "1. Analyseer de 'Harde Eisen' in de opdrachtomschrijving.\n"
-    "2. Zoek in het originele CV naar ervaring die past bij deze eisen. Herschrijf deze ervaring zodanig dat de match overduidelijk is.\n"
-    "3. Gebruik synoniemen en functietitels uit de opdrachtomschrijving in het CV (bijv. als de opdracht vraagt om een 'projectmanager', benadruk dan ervaring als 'projectleider' en gebruik de term projectmanager in de beschrijving).\n"
-    "4. NEGEER DE OPROEP OM DE EISEN LETTERLIJK TE HERHALEN. Vertaal de eis naar een concrete prestatie uit het verleden van de kandidaat.\n\n"
-    
-    "INSTRUCTIES VOOR INHOUD:\n"
-    "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
-    "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
-    "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
-    "- Schrijf 100% op basis van de uitvraag.\n\n"
-    
-    "GEWENSTE STRUCTUUR:\n"
-    "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
-    "Kerncompetenties (met bullets)\n"
-    "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets, hier ervaring MAPPEN aan eisen)\n"
-    "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
-    "Opleiding\n"
-    "Cursussen & trainingen\n"
-    "Vaardigheden en competenties\n"
-    "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
-    "GEBRUIK GEEN ASTERISKEN *"
-
+                    "Jij bent mijn AI-assistent for het professionaliseren van CV's voor brokerportalen. "
+                    "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
+                    "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+                    "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
+                    "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
+                    "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
+                    "BELANGRIJK: Zorg dat de 'Harde Eisen' of eisen waar de kandidaat aan moet voldoen van de opdrachtomschrijving LETTERLIJK terugkomen in de tekst, bij voorkeur in de 'Relevante ervaring' en onder de specifieke functies in de 'Werkervaring'.\n"
+                    "INSTRUCTIES VOOR INHOUD:\n"
+                    "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
+                    "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
+                    "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
+                    "- Schrijf 100% op basis van de uitvraag.\n\n"
+                    "GEWENSTE STRUCTUUR:\n"
+                    "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
+                    "Kerncompetenties (met bullets)\n"
+                    "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets)\n"
+                    "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
+                    "Opleiding\n"
+                    "Cursussen & trainingen\n"
+                    "Vaardigheden en competenties\n"
+                    "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
+                    "GEBRUIK GEEN ASTERISKEN *"
                 )
                 
                 cv_res = client.chat.completions.create(
@@ -168,7 +228,7 @@ elif st.session_state.page == "cv_builder":
                     temperature=0.3
                 )
                 st.session_state.cv_versions.append(cv_res.choices[0].message.content)
-
+    
                 mot_res = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "system", "content": "Schrijf een korte motivatie (200-300 woorden) in InTheArena-stijl. Geen asterisken (*)."},
@@ -176,7 +236,7 @@ elif st.session_state.page == "cv_builder":
                     temperature=0.4
                 )
                 st.session_state.mot_versions.append(mot_res.choices[0].message.content)
-
+    
                 ana_res = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[{"role": "system", "content": "Analyseer ontbrekende vaardigheden kritisch. Geen asterisken (*)."},
@@ -185,7 +245,7 @@ elif st.session_state.page == "cv_builder":
                 )
                 st.session_state.ana_versions.append(ana_res.choices[0].message.content)
                 st.rerun()
-
+    
     # Feedback & Versiebeheer sectie
     if st.session_state.cv_versions:
         st.divider()
@@ -356,10 +416,16 @@ elif st.session_state.page == "geschiktheid_test":
                     with col2:
                         st.markdown("**⚠️ Tekortkomingen:**")
                         for p in r.get("tekortkomingen", []): st.markdown(f"- {p}")
-
-            st.divider()
-            st.subheader("🏆 Rangschikking")
-            for r in resultaten:
-                st.markdown(f"**{r['naam']}**")
-                st.progress(r.get("score", 0) / 100, text=f"{r.get('score',0)}/100 — {r.get('advies','')}")
+            
+                    st.divider()
+                    if st.button(f"✍️ Herschrijf CV van {r['naam']} voor deze opdracht", key=f"herschrijf_{r['naam']}"):
+                        st.session_state.preload_cv_tekst = cv_database[r['naam']]
+                        st.session_state.preload_opdracht = opdracht
+                        st.session_state.preload_naam = r['naam']
+                        # Reset versies zodat je met een schone lei begint
+                        st.session_state.cv_versions = []
+                        st.session_state.mot_versions = []
+                        st.session_state.ana_versions = []
+                        st.session_state.page = "cv_builder"
+                        st.rerun()
 
