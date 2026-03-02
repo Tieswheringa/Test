@@ -87,6 +87,10 @@ if 'preload_opdracht' not in st.session_state:
     st.session_state.preload_opdracht = None
 if 'preload_naam' not in st.session_state:
     st.session_state.preload_naam = None
+if 'geschiktheid_resultaten' not in st.session_state:
+    st.session_state.geschiktheid_resultaten = []
+if 'geschiktheid_opdracht' not in st.session_state:
+    st.session_state.geschiktheid_opdracht = ""
 
 if not st.session_state.authenticated:
     st.title("InTheArena Portaal")
@@ -428,4 +432,5 @@ elif st.session_state.page == "geschiktheid_test":
                         st.session_state.ana_versions = []
                         st.session_state.page = "cv_builder"
                         st.rerun()
+
 
