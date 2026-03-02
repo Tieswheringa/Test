@@ -113,28 +113,38 @@ elif st.session_state.page == "cv_builder":
                 cv_text = "".join([page.extract_text() for page in reader.pages])
                 
                 cv_system = (
-                    "Jij bent mijn AI-assistent for het professionaliseren van CV's voor brokerportalen. "
-                    "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
-                    "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
-                    "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
-                    "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
-                    "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
-                    "BELANGRIJK: Zorg dat de 'Harde Eisen' of eisen waar de kandidaat aan moet voldoen van de opdrachtomschrijving LETTERLIJK terugkomen in de tekst, bij voorkeur in de 'Relevante ervaring' en onder de specifieke functies in de 'Werkervaring'.\n"
-                    "INSTRUCTIES VOOR INHOUD:\n"
-                    "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
-                    "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
-                    "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
-                    "- Schrijf 100% op basis van de uitvraag.\n\n"
-                    "GEWENSTE STRUCTUUR:\n"
-                    "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
-                    "Kerncompetenties (met bullets)\n"
-                    "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets)\n"
-                    "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
-                    "Opleiding\n"
-                    "Cursussen & trainingen\n"
-                    "Vaardigheden en competenties\n"
-                    "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
-                    "GEBRUIK GEEN ASTERISKEN *"
+                    cv_system = (
+    "Jij bent mijn AI-assistent for het professionaliseren van CV’s voor brokerportalen. "
+    "Jouw taak is om een nieuw, volledig herschreven CV te genereren in exact dezelfde structuur, "
+    "layout, tone-of-voice en schrijfstijl als het originele InTheArena-format.\n\n"
+    
+    "BELANGRIJK: De lengte van het herschreven CV MOET tussen de 700 en 900 woorden liggen. "
+    "Breid de beschrijvingen van de werkervaring uit op basis van het origineel om dit te bereiken. "
+    "Wees specifiek in resultaten en verantwoordelijkheden.\n\n"
+    
+    "CRUCIAAL: MAPPING VAN ERVARING AAN EISEN\n"
+    "1. Analyseer de 'Harde Eisen' in de opdrachtomschrijving.\n"
+    "2. Zoek in het originele CV naar ervaring die past bij deze eisen. Herschrijf deze ervaring zodanig dat de match overduidelijk is.\n"
+    "3. Gebruik synoniemen en functietitels uit de opdrachtomschrijving in het CV (bijv. als de opdracht vraagt om een 'projectmanager', benadruk dan ervaring als 'projectleider' en gebruik de term projectmanager in de beschrijving).\n"
+    "4. NEGEER DE OPROEP OM DE EISEN LETTERLIJK TE HERHALEN. Vertaal de eis naar een concrete prestatie uit het verleden van de kandidaat.\n\n"
+    
+    "INSTRUCTIES VOOR INHOUD:\n"
+    "- Herschrijf slim, nooit verzinnen: Gebruik ALLEEN werk dat daadwerkelijk in het originele CV staat.\n"
+    "- Kwaliteiten InTheArena: workshops faciliteren, analyse en structuur aanbrengen, "
+    "communiceren en overtuigen, gedrag en teams begeleiden, implementatie realiseren, resultaten meten en borgen.\n"
+    "- Schrijf 100% op basis van de uitvraag.\n\n"
+    
+    "GEWENSTE STRUCTUUR:\n"
+    "Naam | Consultant | InTheArena en daaronder twee alinea's over de kracht en aanpak\n"
+    "Kerncompetenties (met bullets)\n"
+    "Relevante ervaring t.o.v. functie [Naam Functie] (met bullets, hier ervaring MAPPEN aan eisen)\n"
+    "Werkervaring (Functie | Bedrijf (Jaartal), met daaronder bullets)\n"
+    "Opleiding\n"
+    "Cursussen & trainingen\n"
+    "Vaardigheden en competenties\n"
+    "GEBRUIK VOOR ELKE BULLET een streepje (-) gevolgd door een tab.\n"
+    "GEBRUIK GEEN ASTERISKEN *"
+)
                 )
                 
                 cv_res = client.chat.completions.create(
@@ -256,6 +266,7 @@ elif st.session_state.page == "geschiktheid_test":
     st.title("🎯 Test geschiktheid opdracht/opdrachtgever")
     st.info("Deze module is momenteel in ontwikkeling.")
     st.write("Hier komt straks de functionaliteit om te toetsen of een specifieke kandidaat of InTheArena als geheel past bij een nieuwe aanvraag.")
+
 
 
 
