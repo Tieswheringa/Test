@@ -365,6 +365,7 @@ elif st.session_state.page == "geschiktheid_test":
                 systeem_prompt = (
                     "Jij bent een kritische HR-specialist bij InTheArena. "
                     "Beoordeel of de consultant geschikt is voor de opdracht, beoordeel op harde eisen als daar niet aan voldaan wordt voldoet de kandidaat niet. "
+                    "De eisen tellen veruit het zwaarste mee laat het grootste gedeelte van de beoordeling bepalen door de eisen."
                     "Beredeneer: Verbind specifieke projecten of resultaten uit het CV aan de opdracht.\n"
                     "InTheArena-factor: Let op ervaring met workshops, implementatie en structuur.\n\n"
                     "Geef je analyse UITSLUITEND als JSON zonder extra tekst:\n"
@@ -426,6 +427,7 @@ elif st.session_state.page == "geschiktheid_test":
                     st.session_state.ana_versions = []
                     st.session_state.page = "cv_builder"
                     st.rerun()
+
 
 
 
