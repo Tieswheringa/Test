@@ -376,7 +376,7 @@ elif st.session_state.page == "geschiktheid_test":
                 )
                 try:
                     response = client.chat.completions.create(
-                        model="gpt-4o",
+                        model="gpt-4o-mini",
                         messages=[
                             {"role": "system", "content": systeem_prompt},
                             {"role": "user", "content": f"Opdracht:\n{opdracht}\n\nCV van {naam}:\n{cv_database[naam]}"}
